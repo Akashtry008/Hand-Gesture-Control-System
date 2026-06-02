@@ -1,0 +1,22 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Machine Learning Models (Users should download this per README instructions)
+hand_landmarker.task
+
+# Logs and local reports if needed
+*.log
