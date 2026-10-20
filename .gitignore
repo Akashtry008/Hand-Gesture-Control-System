@@ -20,3 +20,5 @@ hand_landmarker.task
 
 # Logs and local reports if needed
 *.log
+next.txt
+custom_macros.json

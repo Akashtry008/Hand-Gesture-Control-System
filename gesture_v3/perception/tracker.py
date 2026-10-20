@@ -36,13 +36,19 @@ class HandTracker:
         )
         self.landmarker = vision.HandLandmarker.create_from_options(options)
 
-    def process(self, image_rgb, timestamp_ms):
-        """
-        Process frame and detect hand landmarks.
-        - image_rgb: OpenCV image in RGB format
-        - timestamp_ms: Frame timestamp in milliseconds (must be increasing)
-        Returns: Detection result with hand landmarks
-        """
+        # Adaptive contrast enhancement for dim lighting conditions
+        if getattr(config, 'ENABLE_CLAHE_ENHANCER', True):
+            try:
+                import cv2
+                lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB)
+                l, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                cl = clahe.apply(l)
+                limg = cv2.merge((cl, a, b))
+                image_rgb = cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
+            except Exception:
+                pass
+
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
         result = self.landmarker.detect_for_video(mp_image, int(timestamp_ms))
         return result

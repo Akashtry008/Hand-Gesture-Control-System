@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Air - Spatial Node Constellation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #06080e;
+            font-family: 'Rajdhani', sans-serif;
+            color: #d1e8ff;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* Cyberpunk Glassmorphism UI */
+        .hud-overlay {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+        header.hud-overlay {
+            top: 24px;
+            left: 28px;
+            right: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo-box {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .logo-symbol {
+            width: 44px;
+            height: 44px;
+            border: 2px solid #00f0ff;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+            background: rgba(0, 240, 255, 0.08);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 22px;
+            color: #00f0ff;
+        }
+        .logo-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+        }
+        .logo-text p {
+            font-size: 13px;
+            color: #7b93b8;
+            letter-spacing: 1px;
+        }
+        .telemetry-bar {
+            display: flex;
+            gap: 16px;
+        }
+        .stat-card {
+            background: rgba(12, 18, 30, 0.75);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            min-width: 110px;
+        }
+        .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6b82a6;
+            letter-spacing: 1px;
+        }
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: #00f0ff;
+        }
+        /* Bottom Helper Bar */
+        footer.hud-overlay {
+            bottom: 24px;
+            left: 28px;
+            right: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .controls-legend {
+            background: rgba(10, 15, 26, 0.85);
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            border-radius: 8px;
+            padding: 12px 20px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 22px;
+            font-size: 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .key-badge {
+            background: rgba(0, 240, 255, 0.15);
+            border: 1px solid #00f0ff;
+            color: #00f0ff;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        /* Active Node Inspector Drawer */
+        #node-inspector {
+            position: absolute;
+            right: 32px;
+            top: 110px;
+            width: 320px;
+            background: rgba(10, 16, 28, 0.88);
+            border: 1px solid #00f0ff;
+            border-radius: 10px;
+            padding: 20px;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+            transition: opacity 0.3s, transform 0.3s;
+            opacity: 0;
+            transform: translateX(30px);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #node-inspector.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .inspector-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .inspector-type {
+            font-size: 12px;
+            color: #00f0ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        .inspector-desc {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #a3badc;
+            margin-bottom: 14px;
+        }
+        .inspector-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+        }
+        .inspector-metric span:first-child {
+            color: #6c84a8;
+        }
+        .inspector-metric span:last-child {
+            color: #00f0ff;
+            font-weight: 600;
+        }
+        /* Gesture Hand Reticle */
+        #hand-reticle {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            border: 2px dashed #00f0ff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 20;
+            transition: border-color 0.15s, width 0.15s, height 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #hand-reticle.pinching {
+            border-color: #ff0055;
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 0, 85, 0.25);
+            box-shadow: 0 0 20px #ff0055;
+        }
+        #hand-reticle-inner {
+            width: 6px;
+            height: 6px;
+            background: #00f0ff;
+            border-radius: 50%;
+        }
+        #hand-reticle.pinching #hand-reticle-inner {
+            background: #ff0055;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="hud-overlay">
+        <div class="logo-box">
+            <div class="logo-symbol">⟁</div>
+            <div class="logo-text">
+                <h1>PROJECT AIR : NODE MATRIX</h1>
+                <p>SPATIAL INTERACTIVE CONSTELLATION GRAPH</p>
+            </div>
+        </div>
+        <div class="telemetry-bar">
+            <div class="stat-card">
+                <span class="stat-label">TRACKING LINK</span>
+                <span class="stat-value" id="status-link">CONNECTING...</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">ACTIVE GESTURE</span>
+                <span class="stat-value" id="status-gesture">IDLE</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">NODE COUNT</span>
+                <span class="stat-value" id="status-nodes">18 NODES</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">MODE</span>
+                <span class="stat-value" id="status-mode">1-HAND AIR</span>
+            </div>
+        </div>
+    </header>
+
+    <div id="node-inspector">
+        <div class="inspector-title" id="insp-title">NODE NAME</div>
+        <div class="inspector-type" id="insp-type">SYSTEM MODULE</div>
+        <div class="inspector-desc" id="insp-desc">Module telemetry description.</div>
+        <div class="inspector-metric">
+            <span>STATUS</span>
+            <span id="insp-status">ONLINE</span>
+        </div>
+        <div class="inspector-metric">
+            <span>LINK CAPACITY</span>
+            <span id="insp-links">4 PEERS</span>
+        </div>
+        <div class="inspector-metric">
+            <span>LATENCY</span>
+            <span id="insp-lat">0.8 ms</span>
+        </div>
+    </div>
+
+    <footer class="hud-overlay">
+        <div class="controls-legend">
+            <div class="legend-item"><span class="key-badge">PALM</span> Move Reticle</div>
+            <div class="legend-item"><span class="key-badge">PINCH</span> Grab & Connect Node</div>
+            <div class="legend-item"><span class="key-badge">2-HAND SPREAD</span> Expand Constellation</div>
+            <div class="legend-item"><span class="key-badge">2-HAND ROTATE</span> Orbit Graph</div>
+            <div class="legend-item"><span class="key-badge">FIST</span> Shockwave Ripple</div>
+        </div>
+    </footer>
+
+    <div id="hand-reticle">
+        <div id="hand-reticle-inner"></div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const reticle = document.getElementById('hand-reticle');
+        const inspector = document.getElementById('node-inspector');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initNodes();
+        });
+
+        // Reticle / Gesture state
+        const pointer = {
+            x: width / 2,
+            y: height / 2,
+            isPinching: false,
+            grabbedNode: null,
+            zoomScale: 1.0,
+            rotationAngle: 0.0
+        };
+
+        // Node Definition Class
+        class SpatialNode {
+            constructor(id, title, type, x, y, color, radius, desc) {
+                this.id = id;
+                this.title = title;
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.originX = x;
+                this.originY = y;
+                this.vx = (Math.random() - 0.5) * 0.4;
+                this.vy = (Math.random() - 0.5) * 0.4;
+                this.color = color;
+                this.radius = radius;
+                this.desc = desc;
+                this.pulse = Math.random() * Math.PI;
+                this.isHovered = false;
+                this.isGrabbed = false;
+            }
+
+            update() {
+                this.pulse += 0.04;
+
+                if (!this.isGrabbed) {
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Spring back towards origin
+                    const dx = this.originX - this.x;
+                    const dy = this.originY - this.y;
+                    this.vx += dx * 0.001;
+                    this.vy += dy * 0.001;
+
+                    // Damping
+                    this.vx *= 0.98;
+                    this.vy *= 0.98;
+                }
+            }
+
+            draw(ctx) {
+                const currentRadius = this.radius + Math.sin(this.pulse) * 2 + (this.isHovered ? 6 : 0);
+
+                // Outer Halo
+                const grad = ctx.createRadialGradient(this.x, this.y, currentRadius * 0.2, this.x, this.y, currentRadius * 2.2);
+                grad.addColorStop(0, this.color);
+                grad.addColorStop(1, 'transparent');
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentRadius * 2.2, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.globalAlpha = this.isHovered ? 0.7 : 0.35;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+
+                // Core Circle
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#0a101d';
+                ctx.fill();
+                ctx.lineWidth = this.isHovered ? 3 : 2;
+                ctx.strokeStyle = this.color;
+                ctx.stroke();
+
+                // Inner Dot
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+
+                // Label
+                ctx.font = '600 13px Orbitron, sans-serif';
+                ctx.fillStyle = this.isHovered ? '#ffffff' : '#94b3db';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.title, this.x, this.y + currentRadius + 18);
+            }
+        }
+
+        let nodes = [];
+        let connections = [];
+
+        function initNodes() {
+            nodes = [];
+            connections = [];
+            const cx = width / 2;
+            const cy = height / 2;
+
+            // Core Master Node
+            const coreNode = new SpatialNode(
+                'core', 'PROJECT AIR HUB', 'SYSTEM ROOT',
+                cx, cy, '#00f0ff', 28,
+                'Central neural orchestrator coordinating vision perception, physics cursor control, and bimanual spatial computing.'
+            );
+            nodes.push(coreNode);
+
+            // Subsystem Nodes
+            const modules = [
+                { id: 'mouse', title: 'AIR MOUSE', type: 'CORE ENGINE', color: '#00ffaa', radius: 18, desc: 'Physics-based cursor engine with OneEuro filtering, non-linear acceleration curves, and sub-pixel remainder accumulation.' },
+                { id: 'macro', title: 'MACRO RECORDER', type: 'AI RECOGNIZER', color: '#ff0077', radius: 18, desc: '$1 Unistroke geometric template recognizer. Draw shapes (C for Chrome, S for Spotify, Z for Undo) in mid-air.' },
+                { id: 'cam', title: 'VIRTUAL CAMERA', type: 'BROADCAST', color: '#ffbb00', radius: 18, desc: 'DirectShow & OBS virtual camera streamer. Pipes holographic skeletal tracking directly into Zoom, Teams, and Meet.' },
+                { id: 'canvas', title: 'AIR CANVAS', type: 'CREATIVE', color: '#b700ff', radius: 18, desc: 'Mid-air 3D whiteboard and sketching engine with glowing neon brush trails and gesture-based palette cycling.' },
+                { id: 'profiles', title: 'APP PROFILES', type: 'CONTEXT AWARE', color: '#00b4ff', radius: 18, desc: 'Active window inspector. Dynamically customizes gestures for Spotify media playback, PowerPoint slide presentations, and Chrome.' },
+                { id: 'bimanual', title: 'BIMANUAL 3D', type: '2-HAND SPATIAL', color: '#ff00aa', radius: 18, desc: 'Two-hand spatial computing for pinch-to-zoom, steering wheel rotation, screenshot framing, and emergency clap pausing.' },
+                { id: 'desk', title: 'DESK REST', type: 'ERGONOMICS', color: '#55ff00', radius: 16, desc: 'Ergonomic micro-gesture pipeline designed for wrist-rested operation, eliminating arm fatigue during 8-hour workdays.' }
+            ];
+
+            const orbitRadius = Math.min(width, height) * 0.32;
+            modules.forEach((mod, idx) => {
+                const angle = (idx / modules.length) * Math.PI * 2 - Math.PI / 2;
+                const nx = cx + Math.cos(angle) * orbitRadius;
+                const ny = cy + Math.sin(angle) * orbitRadius;
+                const n = new SpatialNode(mod.id, mod.title, mod.type, nx, ny, mod.color, mod.radius, mod.desc);
+                nodes.push(n);
+
+                // Connect to Core
+                connections.push({ from: coreNode, to: n, strength: 1.0 });
+
+                // Connect to neighbor in ring
+                if (idx > 0) {
+                    connections.push({ from: nodes[idx], to: n, strength: 0.5 });
+                }
+            });
+            connections.push({ from: nodes[nodes.length - 1], to: nodes[1], strength: 0.5 });
+
+            // Add secondary satellites
+            for (let i = 0; i < 8; i++) {
+                const parent = nodes[1 + (i % modules.length)];
+                const subAngle = (i * 1.3);
+                const subDist = 70 + Math.random() * 40;
+                const sx = parent.originX + Math.cos(subAngle) * subDist;
+                const sy = parent.originY + Math.sin(subAngle) * subDist;
+                const subNode = new SpatialNode(
+                    `sub_${i}`, `TELEMETRY 0${i+1}`, 'DATA NODE',
+                    sx, sy, '#6385b5', 9,
+                    'Autonomous real-time telemetry buffer monitoring tracking jitter and spatial delta vectors.'
+                );
+                nodes.push(subNode);
+                connections.push({ from: parent, to: subNode, strength: 0.4 });
+            }
+        }
+
+        initNodes();
+
+        // Animation Loop
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Background Cyber Grid
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.03)';
+            ctx.lineWidth = 1;
+            const gridSize = 60;
+            for (let x = 0; x < width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            // Draw Connections
+            connections.forEach(conn => {
+                const dist = Math.hypot(conn.to.x - conn.from.x, conn.to.y - conn.from.y);
+                const isHoveredLine = conn.from.isHovered || conn.to.isHovered;
+
+                ctx.beginPath();
+                ctx.moveTo(conn.from.x, conn.from.y);
+                ctx.lineTo(conn.to.x, conn.to.y);
+
+                if (isHoveredLine) {
+                    ctx.strokeStyle = '#00f0ff';
+                    ctx.lineWidth = 2.5;
+                    ctx.globalAlpha = 0.8;
+                } else {
+                    ctx.strokeStyle = 'rgba(0, 180, 255, 0.2)';
+                    ctx.lineWidth = 1.2;
+                    ctx.globalAlpha = 0.35;
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+
+                // Pulsing data packet along connection line
+                const timeProgress = (Date.now() * 0.001 * conn.strength) % 1.0;
+                const px = conn.from.x + (conn.to.x - conn.from.x) * timeProgress;
+                const py = conn.from.y + (conn.to.y - conn.from.y) * timeProgress;
+
+                ctx.beginPath();
+                ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+                ctx.fillStyle = isHoveredLine ? '#00f0ff' : '#00ffaa';
+                ctx.fill();
+            });
+
+            // Update & Draw Nodes
+            let hoveredAny = null;
+            nodes.forEach(node => {
+                const distToPointer = Math.hypot(node.x - pointer.x, node.y - pointer.y);
+                node.isHovered = distToPointer < (node.radius + 18);
+
+                if (node.isHovered) {
+                    hoveredAny = node;
+                }
+
+                // If node is grabbed by pinch, lock to pointer
+                if (pointer.isPinching && pointer.grabbedNode === node) {
+                    node.x = pointer.x;
+                    node.y = pointer.y;
+                    node.isGrabbed = true;
+                } else if (!pointer.isPinching && node.isGrabbed) {
+                    node.isGrabbed = false;
+                }
+
+                node.update();
+                node.draw(ctx);
+            });
+
+            // Update Inspector Panel
+            if (hoveredAny) {
+                inspector.classList.add('visible');
+                document.getElementById('insp-title').innerText = hoveredAny.title;
+                document.getElementById('insp-type').innerText = hoveredAny.type;
+                document.getElementById('insp-desc').innerText = hoveredAny.desc;
+                document.getElementById('insp-title').style.color = hoveredAny.color;
+            } else if (!pointer.isPinching) {
+                inspector.classList.remove('visible');
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        // Real-Time SSE Connection with Python System
+        function connectToPythonBridge() {
+            const statusLink = document.getElementById('status-link');
+            const statusGesture = document.getElementById('status-gesture');
+            const statusMode = document.getElementById('status-mode');
+
+            try {
+                const evtSource = new EventSource('/api/stream');
+
+                evtSource.onopen = () => {
+                    statusLink.innerText = 'ONLINE (60 FPS)';
+                    statusLink.style.color = '#00ffaa';
+                };
+
+                evtSource.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+
+                    // Update pointer position from normalized coordinates
+                    if (data.cursor) {
+                        pointer.x = data.cursor.x * width;
+                        pointer.y = data.cursor.y * height;
+                        reticle.style.left = `${pointer.x}px`;
+                        reticle.style.top = `${pointer.y}px`;
+                    }
+
+                    // Pinch state
+                    const wasPinching = pointer.isPinching;
+                    pointer.isPinching = (data.state === 'CLICK_LEFT' || data.is_pinching);
+
+                    if (pointer.isPinching) {
+                        reticle.classList.add('pinching');
+                        if (!wasPinching) {
+                            // Find nearest node to grab
+                            nodes.forEach(node => {
+                                const d = Math.hypot(node.x - pointer.x, node.y - pointer.y);
+                                if (d < node.radius + 24) {
+                                    pointer.grabbedNode = node;
+                                }
+                            });
+                        }
+                    } else {
+                        reticle.classList.remove('pinching');
+                        pointer.grabbedNode = null;
+                    }
+
+                    // Fist shockwave ripple
+                    if (data.state === 'FIST') {
+                        nodes.forEach(node => {
+                            const dx = node.x - pointer.x;
+                            const dy = node.y - pointer.y;
+                            const d = Math.hypot(dx, dy);
+                            if (d > 0 && d < 350) {
+                                node.vx += (dx / d) * 12;
+                                node.vy += (dy / d) * 12;
+                            }
+                        });
+                    }
+
+                    // 2-Hand Zoom expansion
+                    if (data.dual_state === 'TWO_HAND_ZOOM_IN') {
+                        nodes.forEach(node => {
+                            node.originX += (node.originX - width / 2) * 0.02;
+                            node.originY += (node.originY - height / 2) * 0.02;
+                        });
+                    } else if (data.dual_state === 'TWO_HAND_ZOOM_OUT') {
+                        nodes.forEach(node => {
+                            node.originX -= (node.originX - width / 2) * 0.02;
+                            node.originY -= (node.originY - height / 2) * 0.02;
+                        });
+                    }
+
+                    // Update Telemetry Bar
+                    statusGesture.innerText = data.state || 'IDLE';
+                    statusMode.innerText = (data.hands && data.hands.length >= 2) ? '2-HAND BIMANUAL' : '1-HAND AIR';
+                };
+
+                evtSource.onerror = () => {
+                    statusLink.innerText = 'LOCAL MOUSE';
+                    statusLink.style.color = '#ffbb00';
+                };
+            } catch (err) {
+                statusLink.innerText = 'STANDALONE';
+            }
+        }
+
+        connectToPythonBridge();
+
+        // Mouse / Touch fallback for interactive testing in browser
+        window.addEventListener('mousemove', (e) => {
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+            reticle.style.left = `${pointer.x}px`;
+            reticle.style.top = `${pointer.y}px`;
+        });
+
+        window.addEventListener('mousedown', () => {
+            pointer.isPinching = true;
+            reticle.classList.add('pinching');
+            nodes.forEach(node => {
+                const d = Math.hypot(node.x - pointer.x, node.y - pointer.y);
+                if (d < node.radius + 24) {
+                    pointer.grabbedNode = node;
+                }
+            });
+        });
+
+        window.addEventListener('mouseup', () => {
+            pointer.isPinching = false;
+            reticle.classList.remove('pinching');
+            pointer.grabbedNode = null;
+        });
+    </script>
+</body>
+</html>

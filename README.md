@@ -13,14 +13,40 @@ A production-grade hand gesture interface system to control your PC using hand g
 - **Professional Smoothing**: OneEuro filter for professional-grade jitter reduction
 - **Real-time Visual Dashboard**: Holographic HUD overlay with finger trails and dynamic reticles
 
-### Gestures Supported
-- **MOVE**: Open hand/palm - Cursor follows hand position with physics smoothing
-- **LEFT CLICK**: Pinch Thumb + Index finger together (hold 0.25s)
-- **RIGHT CLICK**: Pinch Thumb + Middle finger together (hold 0.25s)
-- **SCROLL**: Make peace sign (Index + Middle up), then move hand up/down
-- **DRAG**: Make a fist to toggle drag mode (pick/drop items)
-- **FAST MODE**: Press **'F'** for boosted cursor speed and responsiveness
-- **PAUSE/EXIT**: Press **'Q'** to quit the application
+### Gestures Supported (Single-Hand & Two-Hand Bimanual)
+See [GESTURE_GUIDE.md](file:///d:/HandGes%20-%20CV/GESTURE_GUIDE.md) for complete visual tutorials and pro-tips.
+
+#### 🖐️ 1-Hand Controls
+- **MOVE**: Open palm - Cursor follows with physics momentum & $1€$ smoothing
+- **LEFT CLICK**: Pinch Thumb + Index finger
+- **DOUBLE CLICK**: Double-tap Thumb + Index pinch within 0.38s
+- **3D AIR TAP**: Point Index finger forward toward webcam (contactless push)
+- **RIGHT CLICK**: Pinch Thumb + Middle finger
+- **MIDDLE CLICK**: Pinch Thumb + Ring finger (open link in new tab)
+- **DRAG & DROP**: Make a fist to lock drag; make fist again to release
+- **SCROLL (V / H)**: Peace sign ($V$) vertical or tilted sideways for horizontal
+- **VOLUME UP / DOWN**: Thumbs Up 👍 / Thumbs Down 👎
+- **MUTE / UNMUTE**: Pinky only extended (Pinky Promise 🤙)
+- **PLAY / PAUSE**: "OK" sign 👌 (Thumb + Index ring, 3 fingers up)
+- **NEXT / PREV TRACK**: Point Index finger horizontally Right 👉 / Left 👈
+- **SHOW DESKTOP**: Spider-Man / Rock-on 🤟 (`Win + D`)
+- **APP SWITCHER**: Four fingers up ✋ (`Alt + Tab`)
+
+#### 👐 2-Hand Bimanual Controls
+- **TWO-HAND ZOOM**: Spread hands apart to **Zoom In**, bring closer to **Zoom Out**
+- **TWO-HAND ROTATE**: Rotate hands like a steering wheel to turn canvas/photos
+- **SCREENSHOT SNIP**: Form a rectangular frame box $[\ ]$ with thumbs and index fingers
+- **TWO-HAND CLAP**: Clap hands together to instant pause/resume tracking
+- **WINDOW MAX / MIN**: Push hands outward to maximize; pull inward to minimize
+- **DUAL VOLUME SLIDER**: Left fist anchor + Right index vertical slide
+
+#### 🚀 Advanced Next-Gen Modules
+- **Interactive Spatial Node Constellation (Point 1)**: Physics-connected node galaxy accessible in browser via `http://127.0.0.1:8765/` or hotkey `'N'`
+- **$1 Unistroke AI Macro Recorder (Point 4)**: Trace custom shapes in thin air ("C" for Chrome, "S" for Spotify, circle for F5 refresh)
+- **Virtual Camera for Zoom & Teams (Point 5)**: Stream holographic skeletal overlays directly to Zoom/Teams/Meet via `'V'`
+- **Context-Aware App Profiles (Point 2)**: Auto-switches controls for Spotify, PowerPoint presentations (laser pointer & slide flipper), and Chrome
+- **Air Canvas & Mid-Air Whiteboard (Point 3)**: Draw with neon glowing paint in the air via `'C'`, wipe clean via `'E'`
+- **CLAHE Lighting Enhancer (Point 7)**: Contrast adaptive equalization for dim rooms
 
 ## Prerequisites
 

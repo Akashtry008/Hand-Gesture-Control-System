@@ -4,105 +4,299 @@ from gesture_v3 import config
 
 class GestureClassifier:
     """
-    Recognizes hand gestures from landmarks and returns gesture state with confidence.
+    Recognizes comprehensive 1-hand and 2-hand (bimanual) gestures from MediaPipe landmarks.
     """
     def __init__(self):
         self.state = "IDLE"
-        self.pinch_confidence = 0.0
+        self.dual_state = "IDLE"
         self.last_update = time.time()
         
-        # Landmark indices
-        self.THUMB_TIP = 4
-        self.INDEX_TIP = 8
-        self.MIDDLE_TIP = 12
-        self.RING_TIP = 16
-        self.PINKY_TIP = 20
+        # Temporal tracking for dynamic gestures
+        self.prev_index_z = None
+        self.prev_wrist = None
+        self.prev_dual_dist = None
+        self.prev_dual_angle = None
+        self.prev_dual_slider_y = None
+        self.last_air_tap_time = 0
 
     def process(self, landmarks):
+        """Backward compatibility alias for process_single"""
+        return self.process_single(landmarks)
+
+    def process_single(self, landmarks):
         """
-        Analyze hand landmarks and determine gesture state.
+        Analyze single hand landmarks and return gesture state with metadata.
         Returns: (state_string, metadata_dict)
         """
         if not landmarks:
             self.state = "IDLE"
-            self.pinch_confidence = 0.0
             return self.state, {}
 
-        # Calculate key distances
-        thumb = landmarks[4]
-        index = landmarks[8]
-        middle = landmarks[12]
-        
-        dist_click = math.hypot(thumb.x - index.x, thumb.y - index.y)
-        dist_right = math.hypot(thumb.x - middle.x, thumb.y - middle.y)
-        
-        # Check hand stability by measuring wrist velocity
-        is_stable = self._check_hand_stability(landmarks)
-        
-        # Determine finger states (up or down)
-        fingers_up = self._get_finger_states(landmarks)
-        
-        # Classify gesture based on finger positions and pinches
-        self.state = self._classify_gesture(fingers_up, dist_click, dist_right, is_stable)
-        
-        return self.state, {"confidence": 1.0, "pinch_dist": dist_click}
-    
-    def _check_hand_stability(self, landmarks):
-        """Measure wrist motion to determine if hand is stable for clicking"""
-        wrist = landmarks[0]
         current_time = time.time()
         dt = current_time - self.last_update
         self.last_update = current_time
-        
-        if not hasattr(self, 'prev_wrist'):
-            self.prev_wrist = wrist
-            return True
-        
-        dx = wrist.x - self.prev_wrist.x
-        dy = wrist.y - self.prev_wrist.y
-        dist_move = math.hypot(dx, dy)
-        
-        velocity = dist_move / dt if dt > 0 else 0
-        self.prev_wrist = wrist
-        
-        return velocity < 2.0
-    
+
+        # Key landmarks
+        wrist = landmarks[0]
+        thumb_tip = landmarks[4]
+        index_tip = landmarks[8]
+        middle_tip = landmarks[12]
+        ring_tip = landmarks[16]
+        pinky_tip = landmarks[20]
+
+        index_mcp = landmarks[5]
+        thumb_ip = landmarks[3]
+
+        # Euclidean distances between thumb and finger tips
+        dist_index_pinch = math.hypot(thumb_tip.x - index_tip.x, thumb_tip.y - index_tip.y)
+        dist_middle_pinch = math.hypot(thumb_tip.x - middle_tip.x, thumb_tip.y - middle_tip.y)
+        dist_ring_pinch = math.hypot(thumb_tip.x - ring_tip.x, thumb_tip.y - ring_tip.y)
+
+        # Finger extension states [thumb, index, middle, ring, pinky]
+        fingers_up = self._get_finger_states(landmarks)
+
+        # Air Tap (3D forward push detection on index finger)
+        is_air_tap = False
+        if self.prev_index_z is not None and dt > 0:
+            dz = index_tip.z - self.prev_index_z
+            z_vel = dz / dt
+            if (z_vel < config.AIR_TAP_Z_VELOCITY and 
+                fingers_up[1] and not any(fingers_up[2:]) and 
+                (current_time - self.last_air_tap_time) > config.AIR_TAP_COOLDOWN):
+                is_air_tap = True
+                self.last_air_tap_time = current_time
+        self.prev_index_z = index_tip.z
+
+        # Classify gesture based on priority
+        state = self._classify_single_gesture(
+            landmarks, fingers_up, dist_index_pinch, dist_middle_pinch, dist_ring_pinch, is_air_tap
+        )
+        self.state = state
+
+        meta = {
+            "confidence": 1.0,
+            "dist_pinch": dist_index_pinch,
+            "fingers_up": fingers_up,
+            "wrist": (wrist.x, wrist.y)
+        }
+        return state, meta
+
+    def process_dual(self, hand_left, hand_right):
+        """
+        Analyze two hands (left and right on screen) for bimanual gestures.
+        Returns: (dual_state, metadata_dict)
+        """
+        if not hand_left or not hand_right:
+            self.dual_state = "NONE"
+            self.prev_dual_dist = None
+            self.prev_dual_angle = None
+            return self.dual_state, {}
+
+        # Centers of both hands (palm center average of wrist, index MCP, pinky MCP)
+        c_left_x = (hand_left[0].x + hand_left[5].x + hand_left[17].x) / 3.0
+        c_left_y = (hand_left[0].y + hand_left[5].y + hand_left[17].y) / 3.0
+
+        c_right_x = (hand_right[0].x + hand_right[5].x + hand_right[17].x) / 3.0
+        c_right_y = (hand_right[0].y + hand_right[5].y + hand_right[17].y) / 3.0
+
+        # Distance between hands
+        curr_dist = math.hypot(c_right_x - c_left_x, c_right_y - c_left_y)
+        wrist_dist = math.hypot(hand_left[0].x - hand_right[0].x, hand_left[0].y - hand_right[0].y)
+
+        # Angle between hands (radians)
+        curr_angle = math.atan2(c_right_y - c_left_y, c_right_x - c_left_x)
+
+        fingers_left = self._get_finger_states(hand_left)
+        fingers_right = self._get_finger_states(hand_right)
+
+        state = "NONE"
+        meta = {
+            "dist": curr_dist,
+            "wrist_dist": wrist_dist,
+            "angle": curr_angle,
+            "center_left": (c_left_x, c_left_y),
+            "center_right": (c_right_x, c_right_y)
+        }
+
+        # 1. CLAP GESTURE (Hands meet quickly or wrist distance very small)
+        if wrist_dist < config.CLAP_DISTANCE_THRESHOLD or curr_dist < 0.08:
+            state = "CLAP"
+            self.dual_state = state
+            return state, meta
+
+        # 2. SCREENSHOT FRAME GESTURE (L-Frame Box formed by thumbs and index fingers)
+        is_left_l = fingers_left[0] and fingers_left[1] and not any(fingers_left[2:])
+        is_right_l = fingers_right[0] and fingers_right[1] and not any(fingers_right[2:])
+        if is_left_l and is_right_l and 0.12 < curr_dist < 0.65:
+            # Check if index fingers are pointing opposite or complementary
+            state = "FRAME_CAPTURE"
+            self.dual_state = state
+            return state, meta
+
+        # 3. DUAL VOLUME SLIDER (Left hand is fist anchor, Right hand index moves up/down)
+        is_left_fist = not any(fingers_left[1:])
+        is_right_pointing = fingers_right[1] and not any(fingers_right[2:])
+        if is_left_fist and is_right_pointing:
+            right_index_y = hand_right[8].y
+            if self.prev_dual_slider_y is not None:
+                dy = right_index_y - self.prev_dual_slider_y
+                if dy < -0.015:
+                    state = "DUAL_VOL_UP"
+                elif dy > 0.015:
+                    state = "DUAL_VOL_DOWN"
+                else:
+                    state = "DUAL_SLIDER_IDLE"
+            else:
+                state = "DUAL_SLIDER_IDLE"
+            self.prev_dual_slider_y = right_index_y
+            self.dual_state = state
+            return state, meta
+        else:
+            self.prev_dual_slider_y = None
+
+        # 4. TWO-HAND ZOOM (Both hands open or index pinching, moving closer or further apart)
+        both_open = all(fingers_left) and all(fingers_right)
+        both_pinched = (math.hypot(hand_left[4].x - hand_left[8].x, hand_left[4].y - hand_left[8].y) < 0.10 and
+                        math.hypot(hand_right[4].x - hand_right[8].x, hand_right[4].y - hand_right[8].y) < 0.10)
+
+        if (both_open or both_pinched) and self.prev_dual_dist is not None:
+            delta_d = curr_dist - self.prev_dual_dist
+            if delta_d > config.ZOOM_DELTA_THRESHOLD:
+                state = "TWO_HAND_ZOOM_IN"
+            elif delta_d < -config.ZOOM_DELTA_THRESHOLD:
+                state = "TWO_HAND_ZOOM_OUT"
+
+        # 5. TWO-HAND ROTATE (Angle changes between hands while held out)
+        if state == "NONE" and (both_open or (fingers_left[1] and fingers_right[1])) and self.prev_dual_angle is not None:
+            delta_angle = curr_angle - self.prev_dual_angle
+            # Normalize to [-pi, pi]
+            delta_angle = (delta_angle + math.pi) % (2 * math.pi) - math.pi
+            if delta_angle > config.ROTATE_DELTA_THRESHOLD:
+                state = "TWO_HAND_ROTATE_CW"
+            elif delta_angle < -config.ROTATE_DELTA_THRESHOLD:
+                state = "TWO_HAND_ROTATE_CCW"
+
+        # 6. WINDOW MAXIMIZE / MINIMIZE (Outward or Inward Push)
+        if state == "NONE" and both_open and self.prev_dual_dist is not None:
+            delta_d = curr_dist - self.prev_dual_dist
+            if delta_d > 0.045:
+                state = "WINDOW_MAX"
+            elif delta_d < -0.045:
+                state = "WINDOW_MIN"
+
+        self.prev_dual_dist = curr_dist
+        self.prev_dual_angle = curr_angle
+        self.dual_state = state
+        return state, meta
+
     def _get_finger_states(self, landmarks):
-        """Returns list of boolean values indicating if each finger is up"""
+        """
+        Determines whether each of the 5 fingers is extended.
+        Uses distance from wrist for robust rotation-invariant detection.
+        Returns: [thumb_out, index_up, middle_up, ring_up, pinky_up]
+        """
+        wrist = landmarks[0]
         fingers_up = [False] * 5
-        
-        # Check if index, middle, ring, and pinky are up
-        # Compare tip Y to PIP Y (joint one level down)
+
+        # Tips: [8, 12, 16, 20], PIP joints: [6, 10, 14, 18], MCP joints: [5, 9, 13, 17]
         for i, tip_idx in enumerate([8, 12, 16, 20]):
             pip_idx = tip_idx - 2
-            fingers_up[i + 1] = landmarks[tip_idx].y < landmarks[pip_idx].y
-        
-        # Check if thumb is extended (far from index MCP)
+            mcp_idx = tip_idx - 3
+            
+            d_tip = math.hypot(landmarks[tip_idx].x - wrist.x, landmarks[tip_idx].y - wrist.y)
+            d_pip = math.hypot(landmarks[pip_idx].x - wrist.x, landmarks[pip_idx].y - wrist.y)
+            d_mcp = math.hypot(landmarks[mcp_idx].x - wrist.x, landmarks[mcp_idx].y - wrist.y)
+            
+            # Extended if tip is farther from wrist than PIP and MCP
+            fingers_up[i + 1] = (d_tip > d_pip * 1.12) and (d_tip > d_mcp * 1.25)
+
+        # Thumb extension: check distance from pinky MCP (landmark 17) and index MCP (5)
         thumb_tip = landmarks[4]
+        thumb_ip = landmarks[3]
+        pinky_mcp = landmarks[17]
         index_mcp = landmarks[5]
-        thumb_out = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y) > 0.05
-        fingers_up[0] = thumb_out
+
+        d_thumb_pinky = math.hypot(thumb_tip.x - pinky_mcp.x, thumb_tip.y - pinky_mcp.y)
+        d_thumb_index = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y)
         
+        fingers_up[0] = (d_thumb_pinky > 0.14) or (d_thumb_index > 0.08)
+
         return fingers_up
-    
-    def _classify_gesture(self, fingers_up, dist_click, dist_right, is_stable):
-        """Classify gesture based on finger states and distances"""
-        # Check basic hand positions
-        is_fist = not any(fingers_up[1:])  # All 4 fingers down
-        is_palm = all(fingers_up)  # All fingers up
-        is_peace = (fingers_up[1] and fingers_up[2] and 
-                   not fingers_up[3] and not fingers_up[4])  # Peace sign
-        
-        # Priority: Pinch > Scroll > Fist > Palm > Idle
+
+    def _classify_single_gesture(self, landmarks, fingers_up, dist_click, dist_right, dist_middle, is_air_tap):
+        """Classify single-hand gesture with strict prioritization"""
+        thumb_up = fingers_up[0]
+        index_up = fingers_up[1]
+        middle_up = fingers_up[2]
+        ring_up = fingers_up[3]
+        pinky_up = fingers_up[4]
+
+        # Landmark references
+        wrist = landmarks[0]
+        thumb_tip = landmarks[4]
+        thumb_ip = landmarks[3]
+        thumb_mcp = landmarks[2]
+        index_tip = landmarks[8]
+        index_mcp = landmarks[5]
+
+        # 1. 3D Air Tap (Forward push)
+        if is_air_tap:
+            return "AIR_TAP"
+
+        # 2. "OK" Sign (Thumb + Index pinch, while Middle, Ring, Pinky are extended) -> Play / Pause
+        if dist_click < config.PINCH_THRESHOLD_NORM and middle_up and ring_up and pinky_up:
+            return "PLAY_PAUSE"
+
+        # 3. Pinch Clicks
         if dist_click < config.PINCH_THRESHOLD_NORM:
             return "CLICK_LEFT"
         elif dist_right < config.PINCH_THRESHOLD_NORM:
             return "CLICK_RIGHT"
-        elif is_peace:
-            return "SCROLL"
-        elif is_fist:
+        elif dist_middle < config.PINCH_THRESHOLD_NORM:
+            return "CLICK_MIDDLE"
+
+        # 4. Thumbs Up (Thumb extended pointing UP, all 4 fingers curled) -> Volume Up
+        if not any(fingers_up[1:]) and thumb_tip.y < thumb_ip.y - 0.03 and thumb_tip.y < wrist.y - 0.08:
+            return "VOL_UP"
+
+        # 5. Thumbs Down (Thumb extended pointing DOWN, all 4 fingers curled) -> Volume Down
+        if not any(fingers_up[1:]) and thumb_tip.y > thumb_ip.y + 0.03 and thumb_tip.y > wrist.y + 0.06:
+            return "VOL_DOWN"
+
+        # 6. Pinky Promise (Pinky only up, others curled) -> Mute / Unmute
+        if pinky_up and not index_up and not middle_up and not ring_up:
+            return "MUTE"
+
+        # 7. Spider-Man / Rock-on (Thumb, Index, Pinky extended, Middle & Ring curled) -> Show Desktop
+        if thumb_up and index_up and pinky_up and not middle_up and not ring_up:
+            return "SHOW_DESKTOP"
+
+        # 8. Gun Gesture / Pointing Left or Right (Index extended horizontal, others curled) -> Media Track Switch
+        if index_up and not middle_up and not ring_up and not pinky_up:
+            dx = index_tip.x - index_mcp.x
+            dy = index_tip.y - index_mcp.y
+            if abs(dx) > abs(dy) * 1.25 and abs(dx) > 0.08:
+                return "NEXT_TRACK" if dx > 0 else "PREV_TRACK"
+
+        # 9. Peace Sign (Index & Middle UP, Ring & Pinky curled) -> Scroll Mode
+        if index_up and middle_up and not ring_up and not pinky_up:
+            # Check angle: if tilted sideways (> 45 deg) -> Horizontal Scroll, else Vertical
+            dx = index_tip.x - wrist.x
+            dy = index_tip.y - wrist.y
+            if abs(dx) > abs(dy) * 1.3:
+                return "SCROLL_H"
+            return "SCROLL_V"
+
+        # 10. Four Fingers Up (Thumb tucked in across palm) -> App Switcher (Alt + Tab)
+        if index_up and middle_up and ring_up and pinky_up and not thumb_up:
+            return "ALT_TAB"
+
+        # 11. Closed Fist (All 4 fingers curled) -> Drag & Drop Toggle
+        if not any(fingers_up[1:]):
             return "FIST"
-        elif is_palm:
+
+        # 12. Open Palm (All fingers extended) -> Move Cursor
+        if all(fingers_up) or (index_up and middle_up and ring_up):
             return "MOVE"
-        else:
-            return "IDLE"
+
+        return "IDLE"
