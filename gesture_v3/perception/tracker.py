@@ -1,6 +1,6 @@
-
 import mediapipe as mp
 import os
+import cv2
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
@@ -36,10 +36,16 @@ class HandTracker:
         )
         self.landmarker = vision.HandLandmarker.create_from_options(options)
 
+    def process(self, image_rgb, timestamp_ms):
+        """
+        Process frame and detect hand landmarks.
+        - image_rgb: OpenCV image in RGB format
+        - timestamp_ms: Frame timestamp in milliseconds (must be increasing)
+        Returns: Detection result with hand landmarks
+        """
         # Adaptive contrast enhancement for dim lighting conditions
         if getattr(config, 'ENABLE_CLAHE_ENHANCER', True):
             try:
-                import cv2
                 lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB)
                 l, a, b = cv2.split(lab)
                 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
