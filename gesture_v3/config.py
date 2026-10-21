@@ -8,12 +8,14 @@ import pyautogui
 # --- SYSTEM ---
 APP_NAME = "Project Air - Spatial Gesture Control"
 WINDOW_WIDTH, WINDOW_HEIGHT = pyautogui.size()
+CAMERA_WIDTH = 640          # 640x480 gives 3x to 4x higher FPS and low CPU latency
+CAMERA_HEIGHT = 480
 TARGET_FPS = 60
-FAILSAFE_FPS = 15  # Minimum FPS before safety pause
+FAILSAFE_FPS = 0            # Set to 0: never pause or lock user input on low FPS
 ENABLE_AUDIO_FEEDBACK = True  # Subtle audio clicks on actions (Windows winsound)
 ENABLE_WEB_BRIDGE = True      # Run local WebSocket/HTTP server for Spatial Node UI
 ENABLE_VIRTUAL_CAM = False    # Broadcast frame to Zoom/Teams virtual camera
-ENABLE_CLAHE_ENHANCER = True  # Low-light adaptive contrast filter
+ENABLE_CLAHE_ENHANCER = False # Disabled by default to preserve maximum FPS on CPU
 ENABLE_APP_PROFILES = True    # Context-aware application profiles
 WEB_SERVER_PORT = 8765
 

@@ -38,14 +38,15 @@ class SystemController:
     - Mid-Air Whiteboard (Air Canvas)
     - Web Spatial Bridge (Interactive Node Constellation)
     """
-    CAMERA_WIDTH = 1280
-    CAMERA_HEIGHT = 720
+    CAMERA_WIDTH = getattr(config, 'CAMERA_WIDTH', 640)
+    CAMERA_HEIGHT = getattr(config, 'CAMERA_HEIGHT', 480)
     CAMERA_INDEX = 0
     INITIAL_SMOOTHING_POSITION = [0.5, 0.5]
 
     def __init__(self):
         self.running = True
         self.is_paused = False
+        self.smoothed_fps = 30.0
         self.cap = cv2.VideoCapture(self.CAMERA_INDEX)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.CAMERA_WIDTH)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.CAMERA_HEIGHT)
@@ -120,10 +121,9 @@ class SystemController:
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             frame_timestamp_ms = (current_time - self.start_time) * 1000
             
-            fps = 1.0 / dt if dt > 0 else 0
-            if fps < config.FAILSAFE_FPS and (current_time - self.start_time) > 2.0:
-                self._display_safety_message(img, "LOW FPS")
-                continue
+            # Calculate smoothed FPS (adaptive scaling, never pauses execution)
+            inst_fps = 1.0 / dt if dt > 0 else 30.0
+            self.smoothed_fps = 0.9 * self.smoothed_fps + 0.1 * inst_fps
 
             # Process hand detection (up to 2 hands)
             detection_result = self.tracker.process(img_rgb, frame_timestamp_ms)
@@ -135,9 +135,8 @@ class SystemController:
             else:
                 self._process_hand_lost(cursor, hud, img)
             
-            # FPS counter
-            fps = 1.0 / dt if dt > 0 else 0
-            cv2.putText(img, f"{config.APP_NAME} | FPS: {int(fps)}", 
+            # FPS counter display
+            cv2.putText(img, f"{config.APP_NAME} | FPS: {int(self.smoothed_fps)}", 
                        (20, 32), cv2.FONT_HERSHEY_PLAIN, 1.1, (200, 255, 200), 1, cv2.LINE_AA)
             cv2.imshow(config.APP_NAME, img)
 

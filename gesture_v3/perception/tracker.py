@@ -36,6 +36,11 @@ class HandTracker:
         )
         self.landmarker = vision.HandLandmarker.create_from_options(options)
 
+        # Pre-initialize CLAHE once to avoid recreating per frame
+        self.clahe = None
+        if getattr(config, 'ENABLE_CLAHE_ENHANCER', False):
+            self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+
     def process(self, image_rgb, timestamp_ms):
         """
         Process frame and detect hand landmarks.
@@ -43,15 +48,16 @@ class HandTracker:
         - timestamp_ms: Frame timestamp in milliseconds (must be increasing)
         Returns: Detection result with hand landmarks
         """
-        # Adaptive contrast enhancement for dim lighting conditions
-        if getattr(config, 'ENABLE_CLAHE_ENHANCER', True):
+        # Low-light contrast enhancement (only if enabled and room is actually dark)
+        if self.clahe is not None and getattr(config, 'ENABLE_CLAHE_ENHANCER', False):
             try:
-                lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB)
-                l, a, b = cv2.split(lab)
-                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-                cl = clahe.apply(l)
-                limg = cv2.merge((cl, a, b))
-                image_rgb = cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
+                # Fast brightness sample check
+                if image_rgb.mean() < 60:
+                    lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB)
+                    l, a, b = cv2.split(lab)
+                    cl = self.clahe.apply(l)
+                    limg = cv2.merge((cl, a, b))
+                    image_rgb = cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
             except Exception:
                 pass
 
