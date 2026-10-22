@@ -192,7 +192,7 @@ class GestureClassifier:
     def _get_finger_states(self, landmarks):
         """
         Determines whether each of the 5 fingers is extended.
-        Uses distance from wrist for robust rotation-invariant detection.
+        Uses distance from wrist combined with screen orientation for robust detection.
         Returns: [thumb_out, index_up, middle_up, ring_up, pinky_up]
         """
         wrist = landmarks[0]
@@ -207,24 +207,33 @@ class GestureClassifier:
             d_pip = math.hypot(landmarks[pip_idx].x - wrist.x, landmarks[pip_idx].y - wrist.y)
             d_mcp = math.hypot(landmarks[mcp_idx].x - wrist.x, landmarks[mcp_idx].y - wrist.y)
             
-            # Extended if tip is farther from wrist than PIP and MCP
-            fingers_up[i + 1] = (d_tip > d_pip * 1.12) and (d_tip > d_mcp * 1.25)
+            # Rotation-invariant distance check: extended if tip is farther from wrist than PIP and MCP
+            dist_extended = (d_tip > d_pip * 1.04) and (d_tip > d_mcp * 1.10)
+            
+            # Screen-Y check for upright hands: tip is higher up on screen than PIP joint
+            y_extended = (landmarks[tip_idx].y < landmarks[pip_idx].y) and (d_tip > d_mcp * 1.02)
+            
+            fingers_up[i + 1] = dist_extended or y_extended
 
-        # Thumb extension: check distance from pinky MCP (landmark 17) and index MCP (5)
+        # Thumb extension: check distance from pinky MCP (17), index MCP (5), and wrist (0)
         thumb_tip = landmarks[4]
         thumb_ip = landmarks[3]
+        thumb_mcp = landmarks[2]
         pinky_mcp = landmarks[17]
         index_mcp = landmarks[5]
 
         d_thumb_pinky = math.hypot(thumb_tip.x - pinky_mcp.x, thumb_tip.y - pinky_mcp.y)
         d_thumb_index = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y)
+        d_thumb_wrist = math.hypot(thumb_tip.x - wrist.x, thumb_tip.y - wrist.y)
+        d_mcp_wrist = math.hypot(thumb_mcp.x - wrist.x, thumb_mcp.y - wrist.y)
         
-        fingers_up[0] = (d_thumb_pinky > 0.14) or (d_thumb_index > 0.08)
+        # Extended if sticking out from palm and farther from wrist than thumb MCP
+        fingers_up[0] = (d_thumb_pinky > 0.12 or d_thumb_index > 0.07) and (d_thumb_wrist > d_mcp_wrist * 1.05)
 
         return fingers_up
 
     def _classify_single_gesture(self, landmarks, fingers_up, dist_click, dist_right, dist_middle, is_air_tap):
-        """Classify single-hand gesture with strict prioritization"""
+        """Classify single-hand gesture with strict prioritization and responsive air mouse support"""
         thumb_up = fingers_up[0]
         index_up = fingers_up[1]
         middle_up = fingers_up[2]
@@ -243,60 +252,67 @@ class GestureClassifier:
         if is_air_tap:
             return "AIR_TAP"
 
-        # 2. "OK" Sign (Thumb + Index pinch, while Middle, Ring, Pinky are extended) -> Play / Pause
-        if dist_click < config.PINCH_THRESHOLD_NORM and middle_up and ring_up and pinky_up:
-            return "PLAY_PAUSE"
+        # 2. Closed Fist / Thumb Volume Control (All 4 fingers curled into palm)
+        # Evaluated before pinches so curled fingertips resting in palm never trigger false clicks
+        if not any(fingers_up[1:]):
+            # Thumb straight UP -> Volume Up
+            if thumb_tip.y < thumb_ip.y - 0.02 and thumb_tip.y < wrist.y - 0.05:
+                return "VOL_UP"
+            # Thumb straight DOWN -> Volume Down
+            elif thumb_tip.y > thumb_ip.y + 0.02 and thumb_tip.y > wrist.y + 0.05:
+                return "VOL_DOWN"
+            # Closed Fist -> Drag & Drop toggle
+            else:
+                return "FIST"
 
         # 3. Pinch Clicks
-        if dist_click < config.PINCH_THRESHOLD_NORM:
+        # Left click: Thumb + Index pinch (requires index finger to be extended)
+        if dist_click < config.PINCH_THRESHOLD_NORM and index_up:
             return "CLICK_LEFT"
-        elif dist_right < config.PINCH_THRESHOLD_NORM:
+            
+        # Right click: Thumb + Middle pinch (requires middle finger to be extended)
+        if dist_right < config.PINCH_THRESHOLD_NORM and middle_up:
             return "CLICK_RIGHT"
-        elif dist_middle < config.PINCH_THRESHOLD_NORM:
+            
+        # Middle click: Thumb + Ring pinch (requires ring finger to be extended)
+        if dist_middle < config.PINCH_THRESHOLD_NORM and ring_up:
             return "CLICK_MIDDLE"
 
-        # 4. Thumbs Up (Thumb extended pointing UP, all 4 fingers curled) -> Volume Up
-        if not any(fingers_up[1:]) and thumb_tip.y < thumb_ip.y - 0.03 and thumb_tip.y < wrist.y - 0.08:
-            return "VOL_UP"
-
-        # 5. Thumbs Down (Thumb extended pointing DOWN, all 4 fingers curled) -> Volume Down
-        if not any(fingers_up[1:]) and thumb_tip.y > thumb_ip.y + 0.03 and thumb_tip.y > wrist.y + 0.06:
-            return "VOL_DOWN"
-
-        # 6. Pinky Promise (Pinky only up, others curled) -> Mute / Unmute
+        # 4. Pinky Promise (Pinky only up, others curled) -> Mute / Unmute
         if pinky_up and not index_up and not middle_up and not ring_up:
             return "MUTE"
 
-        # 7. Spider-Man / Rock-on (Thumb, Index, Pinky extended, Middle & Ring curled) -> Show Desktop
+        # 5. Spider-Man / Rock-on (Thumb, Index, Pinky extended, Middle & Ring curled) -> Show Desktop
         if thumb_up and index_up and pinky_up and not middle_up and not ring_up:
             return "SHOW_DESKTOP"
 
-        # 8. Gun Gesture / Pointing Left or Right (Index extended horizontal, others curled) -> Media Track Switch
-        if index_up and not middle_up and not ring_up and not pinky_up:
-            dx = index_tip.x - index_mcp.x
-            dy = index_tip.y - index_mcp.y
-            if abs(dx) > abs(dy) * 1.25 and abs(dx) > 0.08:
-                return "NEXT_TRACK" if dx > 0 else "PREV_TRACK"
+        # 6. Four Fingers Up (Index, Middle, Ring, Pinky UP, Thumb tucked across palm) -> App Switcher (Alt + Tab)
+        if index_up and middle_up and ring_up and pinky_up and not thumb_up:
+            return "ALT_TAB"
 
-        # 9. Peace Sign (Index & Middle UP, Ring & Pinky curled) -> Scroll Mode
+        # 7. Peace Sign (Index & Middle UP, Ring & Pinky curled) -> Scroll Mode
         if index_up and middle_up and not ring_up and not pinky_up:
-            # Check angle: if tilted sideways (> 45 deg) -> Horizontal Scroll, else Vertical
             dx = index_tip.x - wrist.x
             dy = index_tip.y - wrist.y
             if abs(dx) > abs(dy) * 1.3:
                 return "SCROLL_H"
             return "SCROLL_V"
 
-        # 10. Four Fingers Up (Thumb tucked in across palm) -> App Switcher (Alt + Tab)
-        if index_up and middle_up and ring_up and pinky_up and not thumb_up:
-            return "ALT_TAB"
+        # 8. Gun Gesture (Thumb UP + Index pointing horizontal, Middle & Ring curled) -> Media Track Switch
+        if index_up and thumb_up and not middle_up and not ring_up and not pinky_up:
+            thumb_is_up = thumb_tip.y < thumb_ip.y - 0.01
+            dx = index_tip.x - index_mcp.x
+            dy = index_tip.y - index_mcp.y
+            if thumb_is_up and abs(dx) > abs(dy) * 1.3 and abs(dx) > 0.08:
+                return "NEXT_TRACK" if dx > 0 else "PREV_TRACK"
 
-        # 11. Closed Fist (All 4 fingers curled) -> Drag & Drop Toggle
-        if not any(fingers_up[1:]):
-            return "FIST"
+        # 9. Three Fingers Up (Index, Middle, Ring UP, Pinky curled) -> Play / Pause Media
+        if index_up and middle_up and ring_up and not pinky_up:
+            return "PLAY_PAUSE"
 
-        # 12. Open Palm (All fingers extended) -> Move Cursor
-        if all(fingers_up) or (index_up and middle_up and ring_up):
+        # 10. Mouse Movement (Open Palm or Index-Finger Air Pointer)
+        # Any extended index finger (pointing) or open palm moves the cursor smoothly
+        if index_up or all(fingers_up) or (index_up and middle_up and ring_up):
             return "MOVE"
 
         return "IDLE"

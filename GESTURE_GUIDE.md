@@ -7,7 +7,7 @@
 ## 📋 Table of Contents
 1. [Can We Use Both 1-Hand and 2-Hand Gestures?](#-dual-mode-architecture)
 2. [Single-Hand Gestures (14 Gestures)](#-single-hand-gestures)
-   - [1. Mouse Movement (Open Palm)](#1-mouse-movement-open-palm)
+   - [1. Mouse Movement (Open Palm or Index-Finger Air Pointer)](#1-mouse-movement-open-palm-or-index-finger-air-pointer)
    - [2. Left Click (Index Pinch)](#2-left-click-index-pinch)
    - [3. Double Click (Double Pinch)](#3-double-click-double-pinch)
    - [4. 3D Air Tap (Push-to-Click)](#4-3d-air-tap-push-to-click)
@@ -19,7 +19,7 @@
    - [10. Volume Up (Thumbs Up)](#10-volume-up-thumbs-up)
    - [11. Volume Down (Thumbs Down)](#11-volume-down-thumbs-down)
    - [12. Mute / Unmute (Pinky Promise)](#12-mute--unmute-pinky-promise)
-   - [13. Play / Pause Media (OK Sign)](#13-play--pause-media-ok-sign)
+   - [13. Play / Pause Media (Three Fingers Up)](#13-play--pause-media-three-fingers-up-)
    - [14. Track Switch Next / Prev (Gun Gesture)](#14-track-switch-next--prev-gun-gesture)
    - [15. Show Desktop (Spider-Man / Rock-On)](#15-show-desktop-spider-man--rock-on)
    - [16. App Switcher / Alt-Tab (Four Fingers)](#16-app-switcher--alt-tab-four-fingers)
@@ -52,17 +52,19 @@
 
 ## 🖐️ Single-Hand Gestures
 
-### 1. Mouse Movement (Open Palm)
-- **Hand Pose**: Open palm with all 5 fingers relaxed and extended.
+### 1. Mouse Movement (Open Palm or Index-Finger Air Pointer)
+- **Hand Pose**: Either:
+  - **Index-Finger Air Pointer**: Extend your **Index Finger** to point and aim (like a laser pointer or Wiimote).
+  - **Open Palm**: Hold all 5 fingers relaxed and extended.
 - **Action**: Moves the PC cursor with momentum, acceleration, and $1€$ OneEuro jitter filtering.
-- **How to do it**: Hold your hand open facing the camera and move smoothly in any direction. The cursor follows your Index MCP joint.
+- **How to do it**: Point with your index finger or hold your open hand facing the camera and move smoothly in any direction. The cursor follows your Index MCP joint stably without jitter.
 
 ---
 
 ### 2. Left Click (Index Pinch)
 - **Hand Pose**: Pinch your **Thumb Tip** and **Index Tip** together.
 - **Action**: Triggers a standard Left Mouse Click (`pyautogui.click()`).
-- **How to do it**: Quickly touch thumb and index finger together. The HUD reticle will contract and turn **Red**, and you'll hear a crisp audio click.
+- **How to do it**: Quickly touch thumb and index finger together. The HUD reticle will contract and turn **Red**, and you'll hear a crisp audio click. Clicks are top priority and trigger instantly without collision.
 
 ---
 
@@ -142,19 +144,19 @@
 
 ---
 
-### 13. Play / Pause Media (OK Sign 👌)
-- **Hand Pose**: Touch **Thumb + Index** in a ring, with **Middle, Ring, and Pinky extended UP**.
+### 13. Play / Pause Media (Three Fingers Up 🖐️)
+- **Hand Pose**: Extend **Index, Middle, and Ring Fingers UP**, with Pinky and Thumb curled.
 - **Action**: Media Play / Pause (`playpause`) for Spotify, YouTube, VLC, Netflix.
-- **How to do it**: Make the classic "OK" sign facing the camera.
+- **How to do it**: Show 3 fingers upright facing the camera. Keeps Left Click completely independent and conflict-free!
 
 ---
 
 ### 14. Track Switch Next / Prev (Gun Gesture 👉 / 👈)
-- **Hand Pose**: Extend **Index Finger horizontally** (like pointing a finger-gun), other fingers curled.
+- **Hand Pose**: Gun pose with **Thumb pointing UP** (the hammer) and **Index Finger extended horizontally** (the barrel).
 - **Action**:
   - Pointing **RIGHT 👉**: Next Track (`nexttrack`).
   - Pointing **LEFT 👈**: Previous Track (`prevtrack`).
-- **How to do it**: Point your index finger to the right side of the screen to skip forward, or to the left to go back.
+- **How to do it**: Form a finger gun pointing right or left with your thumb cocked up. (Normal pointing without thumb up simply moves the cursor smoothly).
 
 ---
 

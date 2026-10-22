@@ -340,6 +340,12 @@ class SystemController:
 
     def _execute_single_gesture(self, state, delta_x, delta_y, dt, cursor, hud, current_time, norm_x, norm_y):
         """Execute single-hand mouse, multimedia, and navigation commands"""
+        # Reset scroll tracking when outside scroll modes to prevent page jumps
+        if state != "SCROLL_V":
+            self.last_scroll_y = None
+        if state != "SCROLL_H":
+            self.last_scroll_x = None
+
         # Fist toggles drag mode
         if state == "FIST":
             self._handle_drag_toggle(current_time, hud)
